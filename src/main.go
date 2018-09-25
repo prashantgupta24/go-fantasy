@@ -6,14 +6,22 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 )
 
 const (
-	url        = "https://fantasy.premierleague.com/drf/entry/75082/event/4/picks"
-	playersUrl = "https://fantasy.premierleague.com/drf/bootstrap-static"
+	//teamURL         = "https://fantasy.premierleague.com/drf/entry/{{.}}/event/4/picks"
+	teamURL         = "https://fantasy.premierleague.com/drf/entry/"
+	playersURL      = "https://fantasy.premierleague.com/drf/bootstrap-static"
+	participantsURL = "https://fantasy.premierleague.com/drf/leagues-classic-standings/313?phase=1&le-page=1&ls-page=1"
 )
 
+type fplMain struct {
+	playerMap          map[int64]string
+	leagueParticipants []int64
+	playerOccurances   map[string]int
+}
 type TeamMainElem struct {
 	TeamPicksElem []TeamPicksElem `json:"picks"`
 }
@@ -32,12 +40,41 @@ type PlayerElem struct {
 	WebName string `json:"web_name"`
 }
 
-func getTeamInfo() {
+type Participants struct {
+	LeagueStandings LeagueStandings `json:"standings"`
+}
+
+type LeagueStandings struct {
+	LeagueResults []LeagueResults `json:"results"`
+}
+
+type LeagueResults struct {
+	Entry int64 `json:"entry"`
+}
+
+func getTeamInfo(participantNumber int64, fplMain *fplMain) {
+
+	// t := template.New("Participant template")
+
+	// t, err := t.Parse(teamURL)
+	// if err != nil {
+	// 	log.Fatal("Parse: ", err)
+	// 	return
+	// }
+	// // err = t.Execute(os.Stdout, participantNumber)
+	// // if err != nil {
+	// // 	log.Fatal("Execute: ", err)
+	// // 	return
+	// // }
+
+	// fmt.Println("url is ", t)
+
 	var netClient = &http.Client{
 		Timeout: time.Second * 10,
 	}
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	teamURL := teamURL + strconv.FormatInt(participantNumber, 10) + "/event/6/picks"
+	req, err := http.NewRequest(http.MethodGet, teamURL, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -61,15 +98,20 @@ func getTeamInfo() {
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Println(s.TeamPicksElem[0].Element)
+
+	for _, player := range s.TeamPicksElem {
+		fplMain.playerOccurances[fplMain.playerMap[player.Element]]++
+		//fmt.Println(fplMain.playerMap[player.Element])
+	}
+
 }
 
-func getPlayerMapping() {
+func getPlayerMapping(fplMain *fplMain) {
 	var netClient = &http.Client{
 		Timeout: time.Second * 10,
 	}
 
-	req, err := http.NewRequest(http.MethodGet, playersUrl, nil)
+	req, err := http.NewRequest(http.MethodGet, playersURL, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -93,13 +135,68 @@ func getPlayerMapping() {
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Println(s.PlayerElem[1].WebName)
+	for _, player := range s.PlayerElem {
+		fplMain.playerMap[player.Id] = player.WebName
+	}
 
+	fmt.Println("Fetched " + strconv.Itoa(len(fplMain.playerMap)) + " players")
+	//fmt.Println(fplMain.playerMap[332])
+
+}
+
+func getParticipantsInLeague(fplMain *fplMain) {
+	var netClient = &http.Client{
+		Timeout: time.Second * 10,
+	}
+
+	req, err := http.NewRequest(http.MethodGet, participantsURL, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	req.Header.Set("User-Agent", "pg-fpl")
+
+	resp, err := netClient.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err.Error())
+	}
+	s := new(Participants)
+	err = json.Unmarshal(body, &s)
+	if err != nil {
+		panic(err.Error())
+	}
+	for _, participant := range s.LeagueStandings.LeagueResults {
+		fplMain.leagueParticipants = append(fplMain.leagueParticipants, participant.Entry)
+	}
+
+	fmt.Println("Fetched " + strconv.Itoa(len(fplMain.leagueParticipants)) + " participants")
 }
 
 func main() {
 	fmt.Println("starting main program")
+	fplMain := &fplMain{
+		playerMap:        make(map[int64]string),
+		playerOccurances: make(map[string]int),
+	}
 
-	//getTeamInfo()
-	getPlayerMapping()
+	getPlayerMapping(fplMain)
+
+	getParticipantsInLeague(fplMain)
+	for _, participant := range fplMain.leagueParticipants[0:5] {
+		//fmt.Println("Team ", i)
+		getTeamInfo(participant, fplMain)
+	}
+
+	//sort.(fplMain.playerOccurances)
+	for key, value := range fplMain.playerOccurances {
+		fmt.Println("player: ", key, "Used: ", value)
+	}
 }
