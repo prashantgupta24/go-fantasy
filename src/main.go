@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -181,6 +183,29 @@ func getParticipantsInLeague(fplMain *fplMain) {
 }
 
 func main() {
+	file, err := os.Create("result.csv")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	//var data = [][]string{{"abc", 1}, {"Line2", "golangcode.com"}}
+	// data := make(map[string]int)
+
+	// data["a"] = 1
+	// data["b"] = 4
+	// data["c"] = 2
+
+	// for key, value := range data {
+	// 	s := []string{key, strconv.Itoa(value)}
+	// 	err := writer.Write(s)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 	fmt.Println("starting main program")
 	fplMain := &fplMain{
 		playerMap:        make(map[int64]string),
@@ -197,6 +222,11 @@ func main() {
 
 	//sort.(fplMain.playerOccurances)
 	for key, value := range fplMain.playerOccurances {
-		fmt.Println("player: ", key, "Used: ", value)
+		//fmt.Println("player: ", key, "Used: ", value)
+		s := []string{string(key), strconv.Itoa(value)}
+		err := writer.Write(s)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
