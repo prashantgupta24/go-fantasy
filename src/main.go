@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	//teamURL         = "https://fantasy.premierleague.com/drf/entry/{{.}}/event/4/picks"
-	teamURL         = "https://fantasy.premierleague.com/drf/entry/"
+	teamURL         = "https://fantasy.premierleague.com/drf/entry/%v/event/%v/picks"
 	allPlayersURL   = "https://fantasy.premierleague.com/drf/bootstrap-static"
-	participantsURL = "https://fantasy.premierleague.com/drf/leagues-classic-standings/313?phase=1&le-page=1&ls-page=1"
+	participantsURL = "https://fantasy.premierleague.com/drf/leagues-classic-standings/%v?phase=1&le-page=1&ls-page=1"
+	csvFileName     = "result-%v.csv"
 )
 
 type fantasyMain struct {
@@ -72,12 +72,10 @@ func makeRequest(fantasyMain *fantasyMain, URL string) []byte {
 	return body
 }
 
-func getTeamInfoForParticipant(participantNumber int64, fantasyMain *fantasyMain) {
-
-	teamURL := teamURL + strconv.FormatInt(participantNumber, 10) + "/event/6/picks"
+func getTeamInfoForParticipant(participantNumber int64, gameweek int, fantasyMain *fantasyMain) {
+	teamURL := fmt.Sprintf(teamURL, participantNumber, gameweek)
 
 	response := makeRequest(fantasyMain, teamURL)
-
 	ParticipantTeamInfo := new(ParticipantTeamInfo)
 	err := json.Unmarshal(response, &ParticipantTeamInfo)
 	if err != nil {
@@ -91,9 +89,7 @@ func getTeamInfoForParticipant(participantNumber int64, fantasyMain *fantasyMain
 }
 
 func getPlayerMapping(fantasyMain *fantasyMain) {
-
 	response := makeRequest(fantasyMain, allPlayersURL)
-
 	allPlayers := new(AllPlayers)
 	err := json.Unmarshal(response, &allPlayers)
 	if err != nil {
@@ -108,10 +104,10 @@ func getPlayerMapping(fantasyMain *fantasyMain) {
 
 }
 
-func getParticipantsInLeague(fantasyMain *fantasyMain) {
+func getParticipantsInLeague(fantasyMain *fantasyMain, leagueCode int) {
+	participantsURL := fmt.Sprintf(participantsURL, leagueCode)
 
 	response := makeRequest(fantasyMain, participantsURL)
-
 	leagueParticipants := new(LeagueParticipants)
 	err := json.Unmarshal(response, &leagueParticipants)
 	if err != nil {
@@ -125,9 +121,10 @@ func getParticipantsInLeague(fantasyMain *fantasyMain) {
 	fmt.Println("Fetched " + strconv.Itoa(len(fantasyMain.leagueParticipants)) + " participants")
 }
 
-func writeToFile(fantasyMain *fantasyMain) {
+func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
 
-	file, err := os.Create("result.csv")
+	fileName := fmt.Sprintf(csvFileName, leagueCode)
+	file, err := os.Create(fileName)
 	if err != nil {
 		panic(err)
 	}
@@ -157,13 +154,16 @@ func main() {
 		playerOccurances: make(map[string]int),
 	}
 
+	gameweek := 6
+	leagueCode := 313
+
 	getPlayerMapping(fantasyMain)
 
-	getParticipantsInLeague(fantasyMain)
-	for _, participant := range fantasyMain.leagueParticipants[0:5] {
-		getTeamInfoForParticipant(participant, fantasyMain)
+	getParticipantsInLeague(fantasyMain, leagueCode)
+	for _, participant := range fantasyMain.leagueParticipants[0:10] {
+		getTeamInfoForParticipant(participant, gameweek, fantasyMain)
 	}
 
-	writeToFile(fantasyMain)
+	writeToFile(fantasyMain, leagueCode)
 
 }
