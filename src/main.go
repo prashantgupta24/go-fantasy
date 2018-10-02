@@ -132,6 +132,17 @@ func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
+	//Headers
+	var record []string
+	record = append(record, "Player")
+	for gameweekNum := range fantasyMain.playerOccurances {
+		record = append(record, fmt.Sprintf("Gameweek %v", gameweekNum+1))
+	}
+	err = writer.Write(record)
+	if err != nil {
+		panic(err)
+	}
+
 	allPlayers := fantasyMain.playerOccurances[len(fantasyMain.playerOccurances)-1]
 
 	for player := range allPlayers {
