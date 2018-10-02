@@ -16,14 +16,14 @@ const (
 	teamURL         = "https://fantasy.premierleague.com/drf/entry/%v/event/%v/picks"
 	allPlayersURL   = "https://fantasy.premierleague.com/drf/bootstrap-static"
 	participantsURL = "https://fantasy.premierleague.com/drf/leagues-classic-standings/%v?phase=1&le-page=1&ls-page=1"
-	csvFileName     = "result-%v.csv"
+	csvFileName     = "result-%v-%v.csv"
 )
 
 type fantasyMain struct {
 	httpClient         *http.Client
 	playerMap          map[int64]string
 	leagueParticipants []int64
-	playerOccurances   map[string]int
+	playerOccurances   []map[string]int
 }
 
 type ParticipantTeamInfo struct {
@@ -72,7 +72,7 @@ func makeRequest(fantasyMain *fantasyMain, URL string) []byte {
 	return body
 }
 
-func getTeamInfoForParticipant(participantNumber int64, gameweek int, fantasyMain *fantasyMain) {
+func getTeamInfoForParticipant(participantNumber int64, gameweek int, playerOccurance *map[string]int, fantasyMain *fantasyMain) {
 	teamURL := fmt.Sprintf(teamURL, participantNumber, gameweek)
 
 	response := makeRequest(fantasyMain, teamURL)
@@ -83,9 +83,8 @@ func getTeamInfoForParticipant(participantNumber int64, gameweek int, fantasyMai
 	}
 
 	for _, player := range ParticipantTeamInfo.TeamPlayers {
-		fantasyMain.playerOccurances[fantasyMain.playerMap[player.Element]]++
+		(*playerOccurance)[fantasyMain.playerMap[player.Element]]++
 	}
-
 }
 
 func getPlayerMapping(fantasyMain *fantasyMain) {
@@ -123,7 +122,7 @@ func getParticipantsInLeague(fantasyMain *fantasyMain, leagueCode int) {
 
 func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
 
-	fileName := fmt.Sprintf(csvFileName, leagueCode)
+	fileName := fmt.Sprintf(csvFileName, time.Now().Format("2006-01-02"), leagueCode)
 	file, err := os.Create(fileName)
 	if err != nil {
 		panic(err)
@@ -132,10 +131,32 @@ func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
 
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
-	for key, value := range fantasyMain.playerOccurances {
-		//fmt.Println("player: ", key, "Used: ", value)
-		s := []string{string(key), strconv.Itoa(value)}
-		err := writer.Write(s)
+
+	//Headers
+	var record []string
+	record = append(record, "Player")
+	for gameweekNum := range fantasyMain.playerOccurances {
+		record = append(record, fmt.Sprintf("Gameweek %v", gameweekNum+1))
+	}
+	err = writer.Write(record)
+	if err != nil {
+		panic(err)
+	}
+
+	allPlayers := fantasyMain.playerOccurances[len(fantasyMain.playerOccurances)-1]
+
+	for player := range allPlayers {
+
+		var record []string
+		record = append(record, string(player))
+
+		for _, playerOccurances := range fantasyMain.playerOccurances {
+			record = append(record, strconv.Itoa(playerOccurances[player]))
+		}
+
+		//fmt.Println("player: ", player, "Used: ", occurances)
+
+		err := writer.Write(record)
 		if err != nil {
 			panic(err)
 		}
@@ -149,19 +170,23 @@ func main() {
 	}
 
 	fantasyMain := &fantasyMain{
-		httpClient:       httpClient,
-		playerMap:        make(map[int64]string),
-		playerOccurances: make(map[string]int),
+		httpClient: httpClient,
+		playerMap:  make(map[int64]string),
 	}
 
-	gameweek := 6
+	gameweekMax := 7
 	leagueCode := 313
 
 	getPlayerMapping(fantasyMain)
-
 	getParticipantsInLeague(fantasyMain, leagueCode)
-	for _, participant := range fantasyMain.leagueParticipants[0:10] {
-		getTeamInfoForParticipant(participant, gameweek, fantasyMain)
+
+	for gameweek := 1; gameweek <= gameweekMax; gameweek++ {
+		playerOccuranceForGameweek := make(map[string]int)
+		fmt.Println("Fetching gameweek ", gameweek)
+		for _, participant := range fantasyMain.leagueParticipants[0:10] {
+			getTeamInfoForParticipant(participant, gameweek, &playerOccuranceForGameweek, fantasyMain)
+		}
+		fantasyMain.playerOccurances = append(fantasyMain.playerOccurances, playerOccuranceForGameweek)
 	}
 
 	writeToFile(fantasyMain, leagueCode)
