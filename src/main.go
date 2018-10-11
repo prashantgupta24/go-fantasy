@@ -158,7 +158,7 @@ func getPlayerMapping(fantasyMain *fantasyMain) {
 		fantasyMain.playerMap[player.Id] = player.WebName
 	}
 
-	fmt.Println("Fetched " + strconv.Itoa(len(fantasyMain.playerMap)) + " players")
+	fmt.Println("Fetched data of " + strconv.Itoa(len(fantasyMain.playerMap)) + " premier league players")
 
 }
 
@@ -176,11 +176,11 @@ func getParticipantsInLeague(fantasyMain *fantasyMain, leagueCode int) {
 		fantasyMain.leagueParticipants = append(fantasyMain.leagueParticipants, participant.Entry)
 	}
 
-	fmt.Println("Fetched " + strconv.Itoa(len(fantasyMain.leagueParticipants)) + " participants")
+	fmt.Println("Fetched " + strconv.Itoa(len(fantasyMain.leagueParticipants)) + " participants in league")
 }
 
 func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
-	fmt.Println("writing to file")
+	fmt.Println("Writing to file ...")
 
 	fileName := fmt.Sprintf(csvFileName, time.Now().Format("2006-01-02"), leagueCode)
 	file, err := os.Create(fileName)
@@ -224,11 +224,11 @@ func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
 	}
 }
 func main() {
-	fmt.Println("starting main program")
+	fmt.Println("Starting main program")
 
 	start := time.Now()
 	defer func() {
-		fmt.Printf("Took %v to fetch all gameweeks data!\n", time.Since(start))
+		fmt.Printf("Took %v to fetch all data\n", time.Since(start))
 	}()
 
 	playerOccuranceChan := make(chan map[int]map[string]int)
@@ -254,7 +254,7 @@ func main() {
 		wg.Add(1)
 		go func(gameweek int) {
 			playerOccuranceForGameweek := make(map[string]int)
-			fmt.Println("Fetching gameweek ", gameweek)
+			fmt.Println("Fetching data for gameweek ", gameweek)
 
 			for _, participant := range fantasyMain.leagueParticipants[0:10] {
 				err := getTeamInfoForParticipant(participant, gameweek, playerOccuranceForGameweek, fantasyMain)
@@ -277,8 +277,8 @@ func main() {
 	}()
 
 	for playerOccuranceForGameweekMap := range playerOccuranceChan {
-		fmt.Println("Got result!")
 		for gameweekNum, playerOccuranceForGameweek := range playerOccuranceForGameweekMap {
+			fmt.Printf("Data fetched for gameweek %v!\n", gameweekNum)
 			fantasyMain.playerOccurances[gameweekNum] = playerOccuranceForGameweek
 		}
 	}
