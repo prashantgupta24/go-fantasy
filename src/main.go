@@ -158,7 +158,7 @@ func getPlayerMapping(fantasyMain *fantasyMain) {
 		fantasyMain.playerMap[player.Id] = player.WebName
 	}
 
-	fmt.Println("Fetched data of " + strconv.Itoa(len(fantasyMain.playerMap)) + " premier league players")
+	fmt.Printf("Fetched data of %v premier league players \n", strconv.Itoa(len(fantasyMain.playerMap)))
 
 }
 
@@ -176,7 +176,7 @@ func getParticipantsInLeague(fantasyMain *fantasyMain, leagueCode int) {
 		fantasyMain.leagueParticipants = append(fantasyMain.leagueParticipants, participant.Entry)
 	}
 
-	fmt.Println("Fetched " + strconv.Itoa(len(fantasyMain.leagueParticipants)) + " participants in league")
+	fmt.Printf("Fetched %v participants in league", strconv.Itoa(len(fantasyMain.leagueParticipants)))
 }
 
 func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
@@ -254,7 +254,7 @@ func main() {
 		wg.Add(1)
 		go func(gameweek int) {
 			playerOccuranceForGameweek := make(map[string]int)
-			fmt.Println("Fetching data for gameweek ", gameweek)
+			fmt.Printf("Fetching data for gameweek %v\n", gameweek)
 
 			for _, participant := range fantasyMain.leagueParticipants[0:10] {
 				err := getTeamInfoForParticipant(participant, gameweek, playerOccuranceForGameweek, fantasyMain)
