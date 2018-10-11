@@ -157,7 +157,7 @@ func getPlayerMapping(fantasyMain *fantasyMain) {
 		fantasyMain.playerMap[player.Id] = player.WebName
 	}
 
-	fmt.Println("Fetched " + strconv.Itoa(len(fantasyMain.playerMap)) + " players")
+	fmt.Println("Fetched data of " + strconv.Itoa(len(fantasyMain.playerMap)) + " premier league players")
 
 }
 
@@ -175,10 +175,11 @@ func getParticipantsInLeague(fantasyMain *fantasyMain, leagueCode int) {
 		fantasyMain.leagueParticipants = append(fantasyMain.leagueParticipants, participant.Entry)
 	}
 
-	fmt.Println("Fetched " + strconv.Itoa(len(fantasyMain.leagueParticipants)) + " participants")
+	fmt.Println("Fetched " + strconv.Itoa(len(fantasyMain.leagueParticipants)) + " participants in league")
 }
 
 func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
+	fmt.Println("Writing to file ...")
 
 	fileName := fmt.Sprintf(csvFileName, time.Now().Format("2006-01-02"), leagueCode)
 	file, err := os.Create(fileName)
@@ -221,11 +222,11 @@ func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
 	}
 }
 func main() {
-	fmt.Println("starting main program")
+	fmt.Println("Starting main program")
 
 	start := time.Now()
 	defer func() {
-		fmt.Printf("Took %v to fetch all gameweeks data!\n", time.Since(start))
+		fmt.Printf("Took %v to fetch all data\n", time.Since(start))
 	}()
 
 	var httpClient = &http.Client{
@@ -246,7 +247,6 @@ func main() {
 	for gameweek := 1; gameweek <= gameweekMax; gameweek++ {
 		playerOccuranceForGameweek := make(map[string]int)
 		var err error
-		fmt.Println("Fetching gameweek ", gameweek)
 		for _, participant := range fantasyMain.leagueParticipants[0:10] {
 			err = getTeamInfoForParticipant(participant, gameweek, &playerOccuranceForGameweek, fantasyMain)
 			if err != nil {
@@ -256,6 +256,7 @@ func main() {
 		if err != nil {
 			break
 		}
+		fmt.Println("Fetching data for gameweek ", gameweek)
 		fantasyMain.playerOccurances = append(fantasyMain.playerOccurances, playerOccuranceForGameweek)
 	}
 
