@@ -6,14 +6,20 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	pb "github.com/go-fantasy/src/server/grpc"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 const (
+	port            = ":50051"
 	teamURL         = "https://fantasy.premierleague.com/drf/entry/%v/event/%v/picks"
 	allPlayersURL   = "https://fantasy.premierleague.com/drf/bootstrap-static"
 	participantsURL = "https://fantasy.premierleague.com/drf/leagues-classic-standings/%v?phase=1&le-page=1&ls-page=1"
@@ -71,7 +77,7 @@ type AllPlayers struct {
 	Players []Players `json:"elements"`
 }
 type Players struct {
-	Id      int64  `json:"id"`
+	ID      int64  `json:"id"`
 	WebName string `json:"web_name"`
 }
 
@@ -146,7 +152,7 @@ func getTeamInfoForParticipant(participantNumber int64, gameweek int, playerOccu
 	return nil
 }
 
-func getPlayerMapping(fantasyMain *fantasyMain) {
+func getPlayerMapping(fantasyMain *fantasyMain) int {
 	response := makeRequest(fantasyMain, allPlayersURL)
 	allPlayers := new(AllPlayers)
 	err := json.Unmarshal(response, &allPlayers)
@@ -155,10 +161,11 @@ func getPlayerMapping(fantasyMain *fantasyMain) {
 	}
 
 	for _, player := range allPlayers.Players {
-		fantasyMain.playerMap[player.Id] = player.WebName
+		fantasyMain.playerMap[player.ID] = player.WebName
 	}
 
 	fmt.Printf("Fetched data of %v premier league players \n", strconv.Itoa(len(fantasyMain.playerMap)))
+	return len(fantasyMain.playerMap)
 
 }
 
@@ -223,7 +230,53 @@ func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
 		}
 	}
 }
+
+type greeterServer struct{}
+
+// SayHello implements helloworld.GreeterServer
+func (s *greeterServer) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
+	return &pb.HelloReply{Message: "Hello " + in.Name}, nil
+}
+
+type fplServer struct{}
+
+func (s *fplServer) GetNumberOfPlayers(context.Context, *pb.NumPlayerRequest) (*pb.NumPlayers, error) {
+	//leagueCode := 313
+
+	var httpClient = &http.Client{
+		Timeout: time.Second * 10,
+	}
+
+	fantasyMain := &fantasyMain{
+		httpClient:       httpClient,
+		playerMap:        make(map[int64]string),
+		playerOccurances: make(map[int]map[string]int),
+	}
+
+	numPlayersInFPL := getPlayerMapping(fantasyMain)
+	//getParticipantsInLeague(fantasyMain, leagueCode)
+	return &pb.NumPlayers{NumPlayers: int64(numPlayersInFPL)}, nil
+}
+
+func startgRPCServer(wg *sync.WaitGroup) {
+	wg.Add(1)
+	lis, err := net.Listen("tcp", port)
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	// Creates a new gRPC server
+	grpcServer := grpc.NewServer()
+	pb.RegisterGreeterServer(grpcServer, &greeterServer{})
+	pb.RegisterFPLServer(grpcServer, &fplServer{})
+	grpcServer.Serve(lis)
+	fmt.Println("started grpc server")
+}
+
 func main() {
+	var wg sync.WaitGroup
+
+	startgRPCServer(&wg)
+
 	fmt.Println("Starting main program")
 
 	start := time.Now()
@@ -231,10 +284,9 @@ func main() {
 		fmt.Printf("Took %v to fetch all data\n", time.Since(start))
 	}()
 
-	playerOccuranceChan := make(chan map[int]map[string]int)
-	var wg sync.WaitGroup
+	// playerOccuranceChan := make(chan map[int]map[string]int)
 
-	gameweekMax := 38
+	// gameweekMax := 38
 	leagueCode := 313
 
 	var httpClient = &http.Client{
@@ -250,37 +302,38 @@ func main() {
 	getPlayerMapping(fantasyMain)
 	getParticipantsInLeague(fantasyMain, leagueCode)
 
-	for gameweek := 1; gameweek <= gameweekMax; gameweek++ {
-		wg.Add(1)
-		go func(gameweek int) {
-			playerOccuranceForGameweek := make(map[string]int)
-			fmt.Printf("Fetching data for gameweek %v\n", gameweek)
+	// for gameweek := 1; gameweek <= gameweekMax; gameweek++ {
+	// 	wg.Add(1)
+	// 	go func(gameweek int) {
+	// 		playerOccuranceForGameweek := make(map[string]int)
+	// 		fmt.Printf("Fetching data for gameweek %v\n", gameweek)
 
-			for _, participant := range fantasyMain.leagueParticipants[0:10] {
-				err := getTeamInfoForParticipant(participant, gameweek, playerOccuranceForGameweek, fantasyMain)
-				if err != nil {
-					break
-				}
-			}
-			if len(playerOccuranceForGameweek) > 0 {
-				playerOccuranceForGameweekMap := make(map[int]map[string]int)
-				playerOccuranceForGameweekMap[gameweek] = playerOccuranceForGameweek
-				playerOccuranceChan <- playerOccuranceForGameweekMap
-			}
-			wg.Done()
-		}(gameweek)
-	}
+	// 		for _, participant := range fantasyMain.leagueParticipants[0:10] {
+	// 			err := getTeamInfoForParticipant(participant, gameweek, playerOccuranceForGameweek, fantasyMain)
+	// 			if err != nil {
+	// 				break
+	// 			}
+	// 		}
+	// 		if len(playerOccuranceForGameweek) > 0 {
+	// 			playerOccuranceForGameweekMap := make(map[int]map[string]int)
+	// 			playerOccuranceForGameweekMap[gameweek] = playerOccuranceForGameweek
+	// 			playerOccuranceChan <- playerOccuranceForGameweekMap
+	// 		}
+	// 		wg.Done()
+	// 	}(gameweek)
+	// }
 
-	go func() {
-		wg.Wait()
-		close(playerOccuranceChan)
-	}()
+	// go func() {
+	// 	wg.Wait()
+	// 	close(playerOccuranceChan)
+	// }()
 
-	for playerOccuranceForGameweekMap := range playerOccuranceChan {
-		for gameweekNum, playerOccuranceForGameweek := range playerOccuranceForGameweekMap {
-			fmt.Printf("Data fetched for gameweek %v!\n", gameweekNum)
-			fantasyMain.playerOccurances[gameweekNum] = playerOccuranceForGameweek
-		}
-	}
-	writeToFile(fantasyMain, leagueCode)
+	// for playerOccuranceForGameweekMap := range playerOccuranceChan {
+	// 	for gameweekNum, playerOccuranceForGameweek := range playerOccuranceForGameweekMap {
+	// 		fmt.Printf("Data fetched for gameweek %v!\n", gameweekNum)
+	// 		fantasyMain.playerOccurances[gameweekNum] = playerOccuranceForGameweek
+	// 	}
+	// }
+	// writeToFile(fantasyMain, leagueCode)
+	wg.Wait()
 }
