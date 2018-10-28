@@ -1,4 +1,4 @@
-package fpl
+package main
 
 import (
 	"testing"

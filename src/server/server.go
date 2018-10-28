@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	pb "github.com/go-fantasy/src/server/grpc"
@@ -169,7 +168,7 @@ func getPlayerMapping(fantasyMain *fantasyMain) int {
 
 }
 
-func getParticipantsInLeague(fantasyMain *fantasyMain, leagueCode int) {
+func getParticipantsInLeague(fantasyMain *fantasyMain, leagueCode int) int {
 	participantsURL := fmt.Sprintf(participantsURL, leagueCode)
 
 	response := makeRequest(fantasyMain, participantsURL)
@@ -184,6 +183,7 @@ func getParticipantsInLeague(fantasyMain *fantasyMain, leagueCode int) {
 	}
 
 	fmt.Printf("Fetched %v participants in league", strconv.Itoa(len(fantasyMain.leagueParticipants)))
+	return len(fantasyMain.leagueParticipants)
 }
 
 func writeToFile(fantasyMain *fantasyMain, leagueCode int) {
@@ -240,9 +240,7 @@ func (s *greeterServer) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.
 
 type fplServer struct{}
 
-func (s *fplServer) GetNumberOfPlayers(context.Context, *pb.NumPlayerRequest) (*pb.NumPlayers, error) {
-	//leagueCode := 313
-
+func createFantasyObject() *fantasyMain {
 	var httpClient = &http.Client{
 		Timeout: time.Second * 10,
 	}
@@ -253,13 +251,20 @@ func (s *fplServer) GetNumberOfPlayers(context.Context, *pb.NumPlayerRequest) (*
 		playerOccurances: make(map[int]map[string]int),
 	}
 
-	numPlayersInFPL := getPlayerMapping(fantasyMain)
-	//getParticipantsInLeague(fantasyMain, leagueCode)
+	return fantasyMain
+}
+
+func (s *fplServer) GetNumberOfPlayers(context.Context, *pb.NumPlayerRequest) (*pb.NumPlayers, error) {
+	numPlayersInFPL := getPlayerMapping(createFantasyObject())
 	return &pb.NumPlayers{NumPlayers: int64(numPlayersInFPL)}, nil
 }
 
-func startgRPCServer(wg *sync.WaitGroup) {
-	wg.Add(1)
+func (s *fplServer) GetParticipantsInLeague(cxt context.Context, leagueCode *pb.LeagueCode) (*pb.NumParticipants, error) {
+	numParticipants := getParticipantsInLeague(createFantasyObject(), int(leagueCode.LeagueCode))
+	return &pb.NumParticipants{NumParticipants: int64(numParticipants)}, nil
+}
+
+func startgRPCServer() {
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
@@ -268,39 +273,27 @@ func startgRPCServer(wg *sync.WaitGroup) {
 	grpcServer := grpc.NewServer()
 	pb.RegisterGreeterServer(grpcServer, &greeterServer{})
 	pb.RegisterFPLServer(grpcServer, &fplServer{})
+	fmt.Println("started grpc server ...")
 	grpcServer.Serve(lis)
-	fmt.Println("started grpc server")
 }
 
 func main() {
-	var wg sync.WaitGroup
-
-	startgRPCServer(&wg)
-
+	//	var wg sync.WaitGroup
 	fmt.Println("Starting main program")
+	startgRPCServer()
 
-	start := time.Now()
-	defer func() {
-		fmt.Printf("Took %v to fetch all data\n", time.Since(start))
-	}()
+	// start := time.Now()
+	// defer func() {
+	// 	fmt.Printf("Took %v to fetch all data\n", time.Since(start))
+	// }()
 
 	// playerOccuranceChan := make(chan map[int]map[string]int)
 
 	// gameweekMax := 38
-	leagueCode := 313
+	//leagueCode := 313
 
-	var httpClient = &http.Client{
-		Timeout: time.Second * 10,
-	}
-
-	fantasyMain := &fantasyMain{
-		httpClient:       httpClient,
-		playerMap:        make(map[int64]string),
-		playerOccurances: make(map[int]map[string]int),
-	}
-
-	getPlayerMapping(fantasyMain)
-	getParticipantsInLeague(fantasyMain, leagueCode)
+	// getPlayerMapping(fantasyMain)
+	// getParticipantsInLeague(fantasyMain, leagueCode)
 
 	// for gameweek := 1; gameweek <= gameweekMax; gameweek++ {
 	// 	wg.Add(1)
@@ -335,5 +328,4 @@ func main() {
 	// 	}
 	// }
 	// writeToFile(fantasyMain, leagueCode)
-	wg.Wait()
 }

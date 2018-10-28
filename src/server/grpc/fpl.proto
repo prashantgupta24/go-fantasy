@@ -9,7 +9,9 @@ service Greeter {
 
 service FPL {
   rpc getNumberOfPlayers (NumPlayerRequest) returns (NumPlayers) {}
+  rpc getParticipantsInLeague (LeagueCode) returns (numParticipants) {}
 }
+
 
 // The request message containing the user's name.
 message HelloRequest {
@@ -27,4 +29,12 @@ message NumPlayerRequest {
 
 message NumPlayers {
   int64 numPlayers = 1;
+}
+
+message LeagueCode {
+  int64 LeagueCode = 1;
+}
+
+message numParticipants {
+  int64 numParticipants = 1;
 }

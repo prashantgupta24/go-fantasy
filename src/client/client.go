@@ -1,12 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
-	"os"
 	"time"
 
 	pb "github.com/go-fantasy/src/server/grpc"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 
@@ -22,21 +21,21 @@ func main() {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	c := pb.NewGreeterClient(conn)
-
-	// Contact the server and print out its response.
-	name := defaultName
-	if len(os.Args) > 1 {
-		name = os.Args[1]
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
+	// c := pb.NewGreeterClient(conn)
 
-	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: name})
-	if err != nil {
-		log.Fatalf("could not greet: %v", err)
-	}
-	log.Printf("Greeting: %s", r.Message)
+	// // Contact the server and print out its response.
+	// name := defaultName
+	// if len(os.Args) > 1 {
+	// 	name = os.Args[1]
+	// }
+
+	// r, err := c.SayHello(ctx, &pb.HelloRequest{Name: name})
+	// if err != nil {
+	// 	log.Fatalf("could not greet: %v", err)
+	// }
+	// log.Printf("Greeting: %s", r.Message)
 
 	fplClient := pb.NewFPLClient(conn)
 
@@ -47,4 +46,13 @@ func main() {
 	}
 
 	log.Printf("There are %v players in fpl!", numPlayers.NumPlayers)
+
+	leagueCode := int64(313)
+	numParticipants, err := fplClient.GetParticipantsInLeague(ctx, &pb.LeagueCode{LeagueCode: leagueCode})
+
+	if err != nil {
+		log.Fatalf("could not fetch: %v", err)
+	}
+
+	log.Printf("There are %v participants in %v league!", numParticipants.NumParticipants, leagueCode)
 }
