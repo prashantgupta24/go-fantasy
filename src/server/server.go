@@ -264,6 +264,38 @@ func (s *fplServer) GetParticipantsInLeague(cxt context.Context, leagueCode *pb.
 	return &pb.NumParticipants{NumParticipants: int64(numParticipants)}, nil
 }
 
+func (s *fplServer) GetDataForGameweek(req *pb.GameweekReq, stream pb.FPL_GetDataForGameweekServer) error {
+	fplObject := createFantasyObject()
+	getPlayerMapping(fplObject)
+	getParticipantsInLeague(fplObject, int(req.LeagueCode))
+
+	playerOccuranceForGameweek := make(map[string]int)
+	fmt.Printf("Fetching data for gameweek %v\n", req.Gameweek)
+
+	for _, participant := range fplObject.leagueParticipants[0:10] {
+		err := getTeamInfoForParticipant(participant, int(req.Gameweek), playerOccuranceForGameweek, fplObject)
+		if err != nil {
+			break
+		}
+	}
+	if len(playerOccuranceForGameweek) > 0 {
+		// playerOccuranceForGameweekMap := make(map[int]map[string]int)
+		// playerOccuranceForGameweekMap[gameweek] = playerOccuranceForGameweek
+		// playerOccuranceChan <- playerOccuranceForGameweekMap
+		for player, occurance := range playerOccuranceForGameweek {
+			if err := stream.Send(&pb.PlayerOccuranceData{
+				PlayerName:                 player,
+				PlayerOccuranceForGameweek: int32(occurance),
+			},
+			); err != nil {
+				return err
+			}
+		}
+	}
+	// return &pb.NumParticipants{NumParticipants: int64(numParticipants)}, nil
+	return nil
+}
+
 func startgRPCServer() {
 	lis, err := net.Listen("tcp", port)
 	if err != nil {

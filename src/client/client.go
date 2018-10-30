@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"time"
 
@@ -55,4 +56,17 @@ func main() {
 	}
 
 	log.Printf("There are %v participants in %v league!", numParticipants.NumParticipants, leagueCode)
+
+	playerOccuranceDataStream, err := fplClient.GetDataForGameweek(ctx, &pb.GameweekReq{LeagueCode: 313, Gameweek: 9})
+
+	for {
+		playerOccuranceData, err := playerOccuranceDataStream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", fplClient, err)
+		}
+		log.Printf("Player %v was selected by %v player/s!", playerOccuranceData.PlayerName, playerOccuranceData.PlayerOccuranceForGameweek)
+	}
 }
